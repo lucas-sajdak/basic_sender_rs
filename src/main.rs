@@ -1,18 +1,17 @@
 use std::io::prelude::*;
 use std::time::Duration;
 use std::io::ErrorKind;
-use chrono::Utc;
 
 mod stats;
 
 fn read_all(stream: &mut std::net::TcpStream,
     stats: &mut stats::Stats){
-    let mut rcv_buf = vec![0; 2_000_000];
+    let mut rcv_buf = vec![0; 10_000_000];
     loop {
         let bytes_rcvd = stream.read(&mut rcv_buf);
         match bytes_rcvd {
             Ok(n_rcvd)=>{
-                stats.received += n_rcvd as u32;
+                stats.receiving.add_value(n_rcvd as u32);
                 if n_rcvd == 0 {
                     break;
                 }
@@ -35,7 +34,7 @@ fn read_all(stream: &mut std::net::TcpStream,
 fn write_message(stream: &mut std::net::TcpStream,
     stats: &mut stats::Stats){
     let mut msg: std::vec::Vec<u8> = std::vec::Vec::new();
-    for _ in  1..2_000_000 {
+    for _ in  1..100_000_000 {
         msg.push(1);
     }
 
@@ -43,7 +42,7 @@ fn write_message(stream: &mut std::net::TcpStream,
         let bytes_sent = stream.write(msg.as_slice());
         match bytes_sent{
             Ok(n_sent)=>{
-                stats.sent += n_sent as u32;
+                stats.sending.add_value(n_sent as u32);
                 read_all(stream, stats);
             },
             Err(_)=>{
@@ -52,16 +51,18 @@ fn write_message(stream: &mut std::net::TcpStream,
         };
 
         let now = chrono::Utc::now();
-        println!("Stats: {} {}", stats, now );
+        println!("Stats: {:?} {}", stats, now );
     }
 }
 
 fn main() {
 
     let mut stats = stats::Stats{
-        sent: 0,
-        received: 0
+        sending: stats::Statistics::new(),
+        receiving: stats::Statistics::new(),
     };
+
+
 
     let s = std::net::TcpStream::connect("localhost:8080");
     match s{
